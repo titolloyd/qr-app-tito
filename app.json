@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.lloydtito.QRATT"
     },
     "web": {
       "output": "static",
@@ -41,6 +42,13 @@
     ],
     "experiments": {
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4da9e642-7360-4f3d-8a96-422106395086"
+      }
+    },
+    "owner": "lloydtito"
   }
 }
