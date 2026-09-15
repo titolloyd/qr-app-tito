@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   Alert,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,6 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 import { signUp } from '../lib/auth';
 import { COLORS } from '@/constants/colors';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function RegisterScreen() {
   const router = useRouter();

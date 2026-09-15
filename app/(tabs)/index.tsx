@@ -1,5 +1,11 @@
 import { router } from 'expo-router';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppButton from '@/components/AppButton';
 import Header from '@/components/Header';

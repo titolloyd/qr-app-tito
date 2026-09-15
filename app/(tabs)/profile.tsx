@@ -2,24 +2,39 @@ import { useCallback, useState } from 'react';
 import {
   Alert,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter, useFocusEffect } from 'expo-router';
 
 import { getProfile, updateProfile, Profile } from '../../lib/profiles';
 import { supabase } from '../../lib/supabase';
+import AppButton from '@/components/AppButton';
+import { signOut } from '@/lib/auth';
 
 export default function ProfileScreen() {
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [draftName, setDraftName] = useState('');
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const user = supabase.auth.getUser;
+  const handleSignOut = async () => {
+    setLoading(true);
+
+    try {
+      await signOut();
+      router.replace('/login');
+    } catch(err: any) {
+      Alert.alert('Error', err?.message || 'Failed to sign out.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadProfile = useCallback(async () => {
     const {
@@ -105,6 +120,14 @@ export default function ProfileScreen() {
                 {saving ? 'Saving...' : 'Save'}
               </Text>
             </Pressable>
+
+            <AppButton
+              title="Sign Out"
+              icon="log-out-outline"
+              onPress={handleSignOut}
+
+            />
+
           </View>
         ) : (
           <Pressable
