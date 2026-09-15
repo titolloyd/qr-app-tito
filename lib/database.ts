@@ -1,25 +1,11 @@
-import * as SQLite from 'expo-sqlite';
+/*  import * as SQLite from 'expo-sqlite';
+import { parseQRPayload } from './qr';
 
 export type AttendanceRecord = {
   id: number;
   eventId: string;
   eventTitle: string;
   scannedAt: string;
-};
-
-export type Event = {
-  eventId: string;
-  title: string;
-  start: string;
-  end: string;
-};
-
-type EventPayload = {
-  v: number;
-  event: string;
-  title?: string;
-  start?: string;
-  end?: string;
 };
 
 export type RegisterResult = {
@@ -63,26 +49,16 @@ export async function registerAttendance(
   rawPayload: string,
   studentId: string
 ): Promise<RegisterResult> {
-  let payload: EventPayload;
+  const parsed = parseQRPayload(rawPayload);
 
-  try {
-    payload = JSON.parse(rawPayload);
-  } catch {
+  if (!parsed.ok) {
     return {
       success: false,
-      message: 'Invalid QR code.',
+      message: parsed.message,
     };
   }
 
-  if (
-    payload.v !== 1 ||
-    !payload.event
-  ) {
-    return {
-      success: false,
-      message: 'Not an attendance QR code.',
-    };
-  }
+  const payload = parsed.payload;
 
   const now = Date.now();
 
@@ -168,20 +144,4 @@ export async function getAttendanceHistory(
     );
 
   return rows;
-}
-
-export async function createEvent(
-  event: Event
-): Promise<void> {
-  const database = await getDb();
-
-  await database.runAsync(
-    `INSERT OR REPLACE INTO events
-     (eventId, title, start, end)
-     VALUES (?, ?, ?, ?)`,
-    event.eventId,
-    event.title,
-    event.start,
-    event.end
-  );
-}
+} */

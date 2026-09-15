@@ -2,8 +2,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import { useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -16,7 +18,10 @@ import QRCode from 'react-native-qrcode-svg';
 
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
-import { createEvent } from '@/lib/database';
+import { useAuth } from '@/lib/auth';
+import { createEvent } from '@/lib/events';
+import { getProfile, type Role } from '@/lib/profiles';
+import { buildQRPayload } from '@/lib/qr';
 
 function toLocalISO(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -29,6 +34,7 @@ function toLocalISO(date: Date) {
 
 function formatDateTime(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0');
+
   const month = date.toLocaleString('en-US', {
     month: 'short',
   });
@@ -56,10 +62,17 @@ const QUICK_END_OPTIONS = [
 type EditTarget = 'start' | 'end';
 
 export default function TeacherScreen() {
+  const { user } = useAuth();
+
+  const [role, setRole] = useState<Role>('student');
+  const [roleLoading, setRoleLoading] = useState(true);
+
   const [title, setTitle] = useState('');
   const [eventId, setEventId] = useState('');
 
-  const [startDate, setStartDate] = useState(() => new Date());
+  const [startDate, setStartDate] = useState(
+    () => new Date()
+  );
 
   const [endDate, setEndDate] = useState(
     () => new Date(Date.now() + 60 * 60 * 1000)
@@ -71,10 +84,45 @@ export default function TeacherScreen() {
   const [editingPart, setEditingPart] =
     useState<'date' | 'time'>('date');
 
-  const [payload, setPayload] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [payload, setPayload] =
+    useState<string | null>(null);
+
+  const [message, setMessage] =
+    useState<string | null>(null);
 
   const isAndroid = Platform.OS === 'android';
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+
+      async function loadProfile() {
+        setRoleLoading(true);
+
+        if (!user?.id) {
+          if (active) {
+            setRole('student');
+            setRoleLoading(false);
+          }
+
+          return;
+        }
+
+        const profile = await getProfile(user.id);
+
+        if (active) {
+          setRole(profile?.role ?? 'student');
+          setRoleLoading(false);
+        }
+      }
+
+      loadProfile();
+
+      return () => {
+        active = false;
+      };
+    }, [user?.id])
+  );
 
   const openPicker = (target: EditTarget) => {
     setMessage(null);
@@ -88,14 +136,19 @@ export default function TeacherScreen() {
   ) => {
     if (!editTarget) return;
 
-    if (event.type === 'dismissed' || !selected) {
+    if (
+      event.type === 'dismissed' ||
+      !selected
+    ) {
       setEditTarget(null);
       setEditingPart('date');
       return;
     }
 
     const current =
-      editTarget === 'start' ? startDate : endDate;
+      editTarget === 'start'
+        ? startDate
+        : endDate;
 
     const next = new Date(current);
 
@@ -118,7 +171,10 @@ export default function TeacherScreen() {
       setEndDate(next);
     }
 
-    if (isAndroid && editingPart === 'date') {
+    if (
+      isAndroid &&
+      editingPart === 'date'
+    ) {
       setEditingPart('time');
     } else {
       setEditTarget(null);
@@ -128,6 +184,7 @@ export default function TeacherScreen() {
 
   const handleQuickEnd = (ms: number) => {
     setMessage(null);
+
     setEndDate(
       new Date(startDate.getTime() + ms)
     );
@@ -141,37 +198,97 @@ export default function TeacherScreen() {
       end: toLocalISO(endDate),
     };
 
-    if (!event.eventId || !event.title) {
-      setMessage('Event title and code are required.');
+    if (
+      !event.eventId ||
+      !event.title
+    ) {
+      setMessage(
+        'Event title and code are required.'
+      );
+
       return;
     }
 
-    if (endDate.getTime() <= startDate.getTime()) {
-      setMessage('End time must be after start time.');
+    if (
+      endDate.getTime() <=
+      startDate.getTime()
+    ) {
+      setMessage(
+        'End time must be after start time.'
+      );
+
       return;
     }
 
     try {
-      await createEvent(event);
+      const { error } =
+        await createEvent(event);
+
+      if (error) {
+        console.error(
+          'Failed to create event:',
+          error
+        );
+
+        setMessage(error);
+
+        return;
+      }
 
       setMessage(
         'Event saved! Scan the QR with the Scan tab to test it.'
       );
 
       setPayload(
-        JSON.stringify({
-          v: 1,
-          event: event.eventId,
-          title: event.title,
-          start: event.start,
-          end: event.end,
-        })
+        buildQRPayload(event)
       );
     } catch (error) {
-      console.error('Failed to create event:', error);
-      setMessage('Failed to save the event.');
+      console.error(
+        'Failed to create event:',
+        error
+      );
+
+      setMessage(
+        'Failed to save the event.'
+      );
     }
   };
+
+  if (roleLoading) {
+    return (
+      <View style={styles.lockContainer}>
+        <ActivityIndicator
+          size="large"
+          color={COLORS.primary}
+        />
+
+        <Text style={styles.lockTitle}>
+          Checking your account...
+        </Text>
+      </View>
+    );
+  }
+
+  if (role !== 'teacher') {
+    return (
+      <View style={styles.lockContainer}>
+        <Ionicons
+          name="lock-closed-outline"
+          size={52}
+          color={COLORS.primary}
+        />
+
+        <Text style={styles.lockTitle}>
+          Teachers Only
+        </Text>
+
+        <Text style={styles.lockMessage}>
+          Only teacher accounts can create
+          event QR codes.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -179,35 +296,47 @@ export default function TeacherScreen() {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.title}>Create Event QR</Text>
-
-      <Text style={styles.subtitle}>
-        Fill in the event details, then scan the generated QR
-        with the Scan tab.
+      <Text style={styles.title}>
+        Create Event QR
       </Text>
 
-      <Text style={styles.label}>Event Title</Text>
+      <Text style={styles.subtitle}>
+        Fill in the event details, then scan
+        the generated QR with the Scan tab.
+      </Text>
+
+      <Text style={styles.label}>
+        Event Title
+      </Text>
 
       <TextInput
         style={styles.input}
         value={title}
         onChangeText={setTitle}
         placeholder="e.g. Founders Day Assembly"
-        placeholderTextColor={COLORS.textSecondary}
+        placeholderTextColor={
+          COLORS.textSecondary
+        }
       />
 
-      <Text style={styles.label}>Event Code</Text>
+      <Text style={styles.label}>
+        Event Code
+      </Text>
 
       <TextInput
         style={styles.input}
         value={eventId}
         onChangeText={setEventId}
         placeholder="e.g. EVT-2026-0002"
-        placeholderTextColor={COLORS.textSecondary}
+        placeholderTextColor={
+          COLORS.textSecondary
+        }
         autoCapitalize="characters"
       />
 
-      <Text style={styles.label}>Starts</Text>
+      <Text style={styles.label}>
+        Starts
+      </Text>
 
       <PickerField
         value={formatDateTime(startDate)}
@@ -215,7 +344,9 @@ export default function TeacherScreen() {
         onPress={() => openPicker('start')}
       />
 
-      <Text style={styles.label}>Ends</Text>
+      <Text style={styles.label}>
+        Ends
+      </Text>
 
       <PickerField
         value={formatDateTime(endDate)}
@@ -224,25 +355,34 @@ export default function TeacherScreen() {
       />
 
       <View style={styles.chipRow}>
-        {QUICK_END_OPTIONS.map((option) => (
-          <Pressable
-            key={option.label}
-            style={styles.chip}
-            onPress={() => handleQuickEnd(option.ms)}
-          >
-            <Text style={styles.chipText}>
-              {option.label}
-            </Text>
-          </Pressable>
-        ))}
+        {QUICK_END_OPTIONS.map(
+          (option) => (
+            <Pressable
+              key={option.label}
+              style={styles.chip}
+              onPress={() =>
+                handleQuickEnd(option.ms)
+              }
+            >
+              <Text
+                style={styles.chipText}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          )
+        )}
       </View>
 
       <Text style={styles.hint}>
-        Tap a chip to set the end time from start.
+        Tap a chip to set the end time from
+        start.
       </Text>
 
       {message && (
-        <Text style={styles.message}>{message}</Text>
+        <Text style={styles.message}>
+          {message}
+        </Text>
       )}
 
       <AppButton
@@ -253,7 +393,9 @@ export default function TeacherScreen() {
       />
 
       {editTarget && (
-        <View style={styles.pickerContainer}>
+        <View
+          style={styles.pickerContainer}
+        >
           <DateTimePicker
             value={
               editTarget === 'start'
@@ -277,8 +419,11 @@ export default function TeacherScreen() {
 
       {payload && (
         <View style={styles.resultCard}>
-          <Text style={styles.resultTitle}>
-            Scan this QR code with the Scan tab:
+          <Text
+            style={styles.resultTitle}
+          >
+            Scan this QR code with the Scan
+            tab:
           </Text>
 
           <View style={styles.qrBox}>
@@ -288,7 +433,9 @@ export default function TeacherScreen() {
             />
           </View>
 
-          <Text style={styles.payloadText}>
+          <Text
+            style={styles.payloadText}
+          >
             {payload}
           </Text>
         </View>
@@ -312,7 +459,8 @@ function PickerField({
     <Pressable
       style={({ pressed }) => [
         styles.pickerField,
-        pressed && styles.pickerFieldPressed,
+        pressed &&
+          styles.pickerFieldPressed,
       ]}
       onPress={onPress}
     >
@@ -322,7 +470,9 @@ function PickerField({
         color={COLORS.primary}
       />
 
-      <Text style={styles.pickerValue}>
+      <Text
+        style={styles.pickerValue}
+      >
         {value}
       </Text>
 
@@ -477,5 +627,29 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 16,
+  },
+
+  lockContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+
+  lockTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+
+  lockMessage: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginTop: 8,
   },
 });

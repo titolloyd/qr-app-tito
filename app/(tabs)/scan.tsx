@@ -4,10 +4,11 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
-import { STUDENT_ID } from '@/constants/student';
-import { registerAttendance } from '@/lib/database';
+import { useAuth } from '@/lib/auth';
+import { registerAttendance } from '@/lib/attendance';
 
 export default function ScanScreen() {
+  const { user } = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
 
   const [scanned, setScanned] = useState(false);
@@ -44,7 +45,8 @@ export default function ScanScreen() {
     setMessage(null);
 
     try {
-      const result = await registerAttendance(data, STUDENT_ID);
+      const studentId = user?.id ?? 'unknown';
+      const result = await registerAttendance(data, studentId);
 
       setMessage(result.message);
       setSuccess(result.success);

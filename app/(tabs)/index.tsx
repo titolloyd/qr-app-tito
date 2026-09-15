@@ -48,38 +48,44 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    justifyContent: 'space-between',
   },
 
   headerContainer: {
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+
+  bodyContainer: {
     flex: 1,
     justifyContent: 'center',
   },
 
-  bodyContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    marginBottom: 16,
+  footerContainer: {
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+
+  content: {
+    alignItems: 'flex-start',
   },
 
   mainTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.primary,
-    marginBottom: 6,
-    textAlign: 'center',
+    fontSize: 32,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    marginBottom: 8,
   },
 
   subtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: COLORS.textSecondary,
-    textAlign: 'center',
+    lineHeight: 21,
   },
 
-  footerContainer: {
-    flex: 1 / 3,
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    width: '100%',
+  buttonContainer: {
+    gap: 12,
   },
 });
