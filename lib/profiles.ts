@@ -1,6 +1,9 @@
 import { supabase } from './supabase';
 
-export type Role = 'student' | 'teacher';
+export type Role =
+  | 'student'
+  | 'teacher'
+  | 'admin';
 
 export type Profile = {
   id: string;
@@ -12,11 +15,14 @@ export type Profile = {
 export async function getProfile(
   userId: string
 ): Promise<Profile | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, email, full_name, role')
-    .eq('id', userId)
-    .maybeSingle();
+  const { data, error } =
+    await supabase
+      .from('profiles')
+      .select(
+        'id, email, full_name, role'
+      )
+      .eq('id', userId)
+      .maybeSingle();
 
   if (error || !data) {
     return null;
@@ -25,14 +31,45 @@ export async function getProfile(
   return data as Profile;
 }
 
+export async function getAllProfiles(): Promise<
+  Profile[]
+> {
+  const { data, error } =
+    await supabase
+      .from('profiles')
+      .select(
+        'id, email, full_name, role'
+      )
+      .order('created_at', {
+        ascending: false,
+      });
+
+  if (error || !data) {
+    console.error(
+      'Failed to load profiles:',
+      error
+    );
+
+    return [];
+  }
+
+  return data as Profile[];
+}
+
 export async function updateProfile(
   userId: string,
-  updates: { full_name?: string; role?: Role }
+  updates: {
+    full_name?: string;
+    role?: Role;
+  }
 ): Promise<{ error: string | null }> {
-  const { error } = await supabase
-    .from('profiles')
-    .update(updates)
-    .eq('id', userId);
+  const { error } =
+    await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId);
 
-  return { error: error?.message ?? null };
+  return {
+    error: error?.message ?? null,
+  };
 }

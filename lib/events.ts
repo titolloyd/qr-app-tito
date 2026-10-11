@@ -1,18 +1,19 @@
 import { supabase } from './supabase';
 
-export type Event = {
-  eventId: string;
-  title: string;
-  start: string;
-  end: string;
-};
+export type EventStatus = 'open' | 'closed';
 
-export type CloudEvent = {
-  id: string;
+export type Event = {
   event_code: string;
   title: string;
   start_time: string | null;
   end_time: string | null;
+  venue?: string | null;
+  description?: string | null;
+  status?: EventStatus;
+};
+
+export type CloudEvent = Event & {
+  id: string;
   created_by: string | null;
   created_at: string;
 };
@@ -24,20 +25,26 @@ export async function createEvent(
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (!user) {
+    return {
+      error:
+        'You must be logged in to create an event.',
+    };
+  }
+
   const { error } = await supabase
     .from('events')
-    .upsert(
-      {
-        event_code: event.eventId,
-        title: event.title,
-        start_time: event.start || null,
-        end_time: event.end || null,
-        created_by: user?.id ?? null,
-      },
-      {
-        onConflict: 'event_code',
-      }
-    );
+    .insert({
+      event_code: event.event_code,
+      title: event.title,
+      start_time: event.start_time,
+      end_time: event.end_time,
+      venue: event.venue ?? null,
+      description:
+        event.description ?? null,
+      status: event.status ?? 'open',
+      created_by: user.id,
+    });
 
   return {
     error: error?.message ?? null,
@@ -47,14 +54,39 @@ export async function createEvent(
 export async function getEventsByTeacher(
   teacherId: string
 ): Promise<CloudEvent[]> {
-  const { data, error } = await supabase
-    .from('events')
-    .select('*')
-    .eq('created_by', teacherId)
-    .order('created_at', { ascending: false });
+  const { data, error } =
+    await supabase
+      .from('events')
+      .select('*')
+      .eq('created_by', teacherId)
+      .order('created_at', {
+        ascending: false,
+      });
 
   if (error || !data) {
-    console.error('Failed to load teacher events:', error);
+    return [];
+  }
+
+  return data as CloudEvent[];
+}
+
+export async function getAllEvents(): Promise<
+  CloudEvent[]
+> {
+  const { data, error } =
+    await supabase
+      .from('events')
+      .select('*')
+      .order('created_at', {
+        ascending: false,
+      });
+
+  if (error || !data) {
+    console.error(
+      'Failed to load all events:',
+      error
+    );
+
     return [];
   }
 
@@ -64,15 +96,54 @@ export async function getEventsByTeacher(
 export async function getEventByCode(
   code: string
 ): Promise<CloudEvent | null> {
-  const { data, error } = await supabase
-    .from('events')
-    .select('*')
-    .eq('event_code', code)
-    .maybeSingle();
+  const { data, error } =
+    await supabase
+      .from('events')
+      .select('*')
+      .eq('event_code', code)
+      .maybeSingle();
 
   if (error || !data) {
     return null;
   }
 
   return data as CloudEvent;
+}
+
+export async function updateEvent(
+  eventId: string,
+  updates: {
+    title?: string;
+    event_code?: string;
+    start_time?: string | null;
+    end_time?: string | null;
+    venue?: string | null;
+    description?: string | null;
+  }
+): Promise<{ error: string | null }> {
+  const { error } =
+    await supabase
+      .from('events')
+      .update(updates)
+      .eq('id', eventId);
+
+  return {
+    error: error?.message ?? null,
+  };
+}
+
+export async function closeEvent(
+  eventId: string
+): Promise<{ error: string | null }> {
+  const { error } =
+    await supabase
+      .from('events')
+      .update({
+        status: 'closed',
+      })
+      .eq('id', eventId);
+
+  return {
+    error: error?.message ?? null,
+  };
 }

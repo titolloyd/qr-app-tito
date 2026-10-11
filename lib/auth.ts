@@ -4,7 +4,7 @@ import { supabase } from './supabase';
 
 export type SignUpProfile = {
   full_name: string;
-  role: 'student' | 'teacher';
+  role: 'student';
 };
 
 let currentSession: Session | null = null;
@@ -79,23 +79,25 @@ export async function signUp(
   password: string,
   profile?: SignUpProfile
 ) {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-  });
+  const { data, error } =
+    await supabase.auth.signUp({
+      email,
+      password,
+    });
 
   if (error) {
     return { data, error };
   }
 
   if (data.session && profile) {
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({
-        full_name: profile.full_name,
-        role: profile.role,
-      })
-      .eq('id', data.session.user.id);
+    const { error: profileError } =
+      await supabase
+        .from('profiles')
+        .update({
+          full_name: profile.full_name,
+          role: 'student',
+        })
+        .eq('id', data.session.user.id);
 
     if (profileError) {
       return {
@@ -113,7 +115,8 @@ export async function signUp(
 }
 
 export async function signOut() {
-  const { error } = await supabase.auth.signOut();
+  const { error } =
+    await supabase.auth.signOut();
 
   if (!error) {
     setAuth(null);

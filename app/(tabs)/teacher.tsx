@@ -19,29 +19,59 @@ import QRCode from 'react-native-qrcode-svg';
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/lib/auth';
-import { createEvent } from '@/lib/events';
+import {
+  closeEvent,
+  createEvent,
+  getEventsByTeacher,
+  updateEvent,
+  type CloudEvent,
+} from '@/lib/events';
 import { getProfile, type Role } from '@/lib/profiles';
 import { buildQRPayload } from '@/lib/qr';
 
 function toLocalISO(date: Date) {
-  const pad = (n: number) => String(n).padStart(2, '0');
+  const pad = (n: number) =>
+    String(n).padStart(2, '0');
 
   return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}:00`
+    `${date.getFullYear()}-${pad(
+      date.getMonth() + 1
+    )}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(
+      date.getMinutes()
+    )}:00`
   );
 }
 
 function formatDateTime(date: Date) {
-  const pad = (n: number) => String(n).padStart(2, '0');
+  const pad = (n: number) =>
+    String(n).padStart(2, '0');
 
   const month = date.toLocaleString('en-US', {
     month: 'short',
   });
 
-  return `${month} ${pad(date.getDate())}, ${date.getFullYear()} at ${pad(
+  return `${month} ${pad(
+    date.getDate()
+  )}, ${date.getFullYear()} at ${pad(
     date.getHours()
   )}:${pad(date.getMinutes())}`;
+}
+
+function formatEventDate(
+  value: string | null
+) {
+  if (!value) {
+    return 'Not set';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return formatDateTime(date);
 }
 
 const QUICK_END_OPTIONS = [
@@ -64,19 +94,38 @@ type EditTarget = 'start' | 'end';
 export default function TeacherScreen() {
   const { user } = useAuth();
 
-  const [role, setRole] = useState<Role>('student');
-  const [roleLoading, setRoleLoading] = useState(true);
+  const [role, setRole] =
+    useState<Role>('student');
+
+  const [roleLoading, setRoleLoading] =
+    useState(true);
+
+  const [events, setEvents] =
+    useState<CloudEvent[]>([]);
+
+  const [eventsLoading, setEventsLoading] =
+    useState(false);
+
+  const [editingEvent, setEditingEvent] =
+    useState<CloudEvent | null>(null);
 
   const [title, setTitle] = useState('');
   const [eventId, setEventId] = useState('');
+  const [venue, setVenue] = useState('');
+  const [description, setDescription] =
+    useState('');
 
-  const [startDate, setStartDate] = useState(
-    () => new Date()
-  );
+  const [startDate, setStartDate] =
+    useState(() => new Date());
 
-  const [endDate, setEndDate] = useState(
-    () => new Date(Date.now() + 60 * 60 * 1000)
-  );
+  const [endDate, setEndDate] =
+    useState(
+      () =>
+        new Date(
+          Date.now() +
+            60 * 60 * 1000
+        )
+    );
 
   const [editTarget, setEditTarget] =
     useState<EditTarget | null>(null);
@@ -90,7 +139,26 @@ export default function TeacherScreen() {
   const [message, setMessage] =
     useState<string | null>(null);
 
-  const isAndroid = Platform.OS === 'android';
+  const [saving, setSaving] =
+    useState(false);
+
+  const isAndroid =
+    Platform.OS === 'android';
+
+  const loadEvents = useCallback(
+    async (teacherId: string) => {
+      setEventsLoading(true);
+
+      const data =
+        await getEventsByTeacher(
+          teacherId
+        );
+
+      setEvents(data);
+      setEventsLoading(false);
+    },
+    []
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -108,11 +176,22 @@ export default function TeacherScreen() {
           return;
         }
 
-        const profile = await getProfile(user.id);
+        const profile =
+          await getProfile(user.id);
 
         if (active) {
-          setRole(profile?.role ?? 'student');
+          setRole(
+            profile?.role ?? 'student'
+          );
+
           setRoleLoading(false);
+        }
+
+        if (
+          active &&
+          profile?.role === 'teacher'
+        ) {
+          await loadEvents(user.id);
         }
       }
 
@@ -121,10 +200,34 @@ export default function TeacherScreen() {
       return () => {
         active = false;
       };
-    }, [user?.id])
+    }, [user?.id, loadEvents])
   );
 
-  const openPicker = (target: EditTarget) => {
+  const resetForm = () => {
+    setEditingEvent(null);
+    setTitle('');
+    setEventId('');
+    setVenue('');
+    setDescription('');
+
+    const start = new Date();
+
+    const end = new Date(
+      start.getTime() +
+        60 * 60 * 1000
+    );
+
+    setStartDate(start);
+    setEndDate(end);
+
+    setPayload(null);
+    setMessage(null);
+    setEditTarget(null);
+  };
+
+  const openPicker = (
+    target: EditTarget
+  ) => {
     setMessage(null);
     setEditTarget(target);
     setEditingPart('date');
@@ -142,6 +245,7 @@ export default function TeacherScreen() {
     ) {
       setEditTarget(null);
       setEditingPart('date');
+
       return;
     }
 
@@ -182,25 +286,28 @@ export default function TeacherScreen() {
     }
   };
 
-  const handleQuickEnd = (ms: number) => {
+  const handleQuickEnd = (
+    ms: number
+  ) => {
     setMessage(null);
 
     setEndDate(
-      new Date(startDate.getTime() + ms)
+      new Date(
+        startDate.getTime() + ms
+      )
     );
   };
 
   const handleCreateEvent = async () => {
-    const event = {
-      eventId: eventId.trim(),
-      title: title.trim(),
-      start: toLocalISO(startDate),
-      end: toLocalISO(endDate),
-    };
+    const trimmedCode =
+      eventId.trim();
+
+    const trimmedTitle =
+      title.trim();
 
     if (
-      !event.eventId ||
-      !event.title
+      !trimmedCode ||
+      !trimmedTitle
     ) {
       setMessage(
         'Event title and code are required.'
@@ -220,28 +327,55 @@ export default function TeacherScreen() {
       return;
     }
 
+    setSaving(true);
+    setMessage(null);
+
     try {
+      const event = {
+        event_code: trimmedCode,
+        title: trimmedTitle,
+        start_time:
+          toLocalISO(startDate),
+        end_time:
+          toLocalISO(endDate),
+        venue:
+          venue.trim() || null,
+        description:
+          description.trim() || null,
+        status: 'open' as const,
+      };
+
       const { error } =
         await createEvent(event);
 
       if (error) {
-        console.error(
-          'Failed to create event:',
-          error
-        );
-
         setMessage(error);
+        setSaving(false);
 
         return;
       }
 
       setMessage(
-        'Event saved! Scan the QR with the Scan tab to test it.'
+        'Event created successfully.'
       );
 
       setPayload(
-        buildQRPayload(event)
+        buildQRPayload({
+          eventId: event.event_code,
+          title: event.title,
+          start: event.start_time,
+          end: event.end_time,
+        })
       );
+
+      setTitle('');
+      setEventId('');
+      setVenue('');
+      setDescription('');
+
+      if (user?.id) {
+        await loadEvents(user.id);
+      }
     } catch (error) {
       console.error(
         'Failed to create event:',
@@ -249,9 +383,210 @@ export default function TeacherScreen() {
       );
 
       setMessage(
-        'Failed to save the event.'
+        'Failed to create the event.'
       );
     }
+
+    setSaving(false);
+  };
+
+  const handleStartEdit = (
+    event: CloudEvent
+  ) => {
+    if (event.status === 'closed') {
+      setMessage(
+        'Closed events cannot be edited.'
+      );
+
+      return;
+    }
+
+    setEditingEvent(event);
+
+    setTitle(event.title);
+    setEventId(event.event_code);
+    setVenue(event.venue ?? '');
+    setDescription(
+      event.description ?? ''
+    );
+
+    setStartDate(
+      event.start_time
+        ? new Date(event.start_time)
+        : new Date()
+    );
+
+    setEndDate(
+      event.end_time
+        ? new Date(event.end_time)
+        : new Date(
+            Date.now() +
+              60 * 60 * 1000
+          )
+    );
+
+    setPayload(null);
+    setMessage(null);
+  };
+
+  const handleUpdateEvent = async () => {
+    if (!editingEvent) return;
+
+    if (
+      !eventId.trim() ||
+      !title.trim()
+    ) {
+      setMessage(
+        'Event title and code are required.'
+      );
+
+      return;
+    }
+
+    if (
+      endDate.getTime() <=
+      startDate.getTime()
+    ) {
+      setMessage(
+        'End time must be after start time.'
+      );
+
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      const { error } =
+        await updateEvent(
+          editingEvent.id,
+          {
+            event_code:
+              eventId.trim(),
+            title: title.trim(),
+            start_time:
+              toLocalISO(startDate),
+            end_time:
+              toLocalISO(endDate),
+            venue:
+              venue.trim() || null,
+            description:
+              description.trim() || null,
+          }
+        );
+
+      if (error) {
+        setMessage(error);
+        setSaving(false);
+
+        return;
+      }
+
+      setMessage(
+        'Event updated successfully.'
+      );
+
+      setEditingEvent(null);
+
+      setPayload(
+        buildQRPayload({
+          eventId:
+            eventId.trim(),
+          title: title.trim(),
+          start: toLocalISO(
+            startDate
+          ),
+          end: toLocalISO(
+            endDate
+          ),
+        })
+      );
+
+      if (user?.id) {
+        await loadEvents(user.id);
+      }
+    } catch (error) {
+      console.error(
+        'Failed to update event:',
+        error
+      );
+
+      setMessage(
+        'Failed to update the event.'
+      );
+    }
+
+    setSaving(false);
+  };
+
+  const handleCloseEvent = async (
+    event: CloudEvent
+  ) => {
+    if (event.status === 'closed') {
+      setMessage(
+        'This event is already closed.'
+      );
+
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      const { error } =
+        await closeEvent(event.id);
+
+      if (error) {
+        setMessage(error);
+        setSaving(false);
+
+        return;
+      }
+
+      setMessage(
+        `${event.title} has been closed.`
+      );
+
+      if (
+        editingEvent?.id === event.id
+      ) {
+        setEditingEvent(null);
+      }
+
+      if (user?.id) {
+        await loadEvents(user.id);
+      }
+    } catch (error) {
+      console.error(
+        'Failed to close event:',
+        error
+      );
+
+      setMessage(
+        'Failed to close the event.'
+      );
+    }
+
+    setSaving(false);
+  };
+
+  const handleShowQR = (
+    event: CloudEvent
+  ) => {
+    setMessage(null);
+
+    setPayload(
+      buildQRPayload({
+        eventId: event.event_code,
+        title: event.title,
+        start:
+          event.start_time ?? '',
+        end:
+          event.end_time ?? '',
+      })
+    );
   };
 
   if (roleLoading) {
@@ -283,8 +618,8 @@ export default function TeacherScreen() {
         </Text>
 
         <Text style={styles.lockMessage}>
-          Only teacher accounts can create
-          event QR codes.
+          Only teacher accounts can manage
+          events.
         </Text>
       </View>
     );
@@ -297,12 +632,15 @@ export default function TeacherScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <Text style={styles.title}>
-        Create Event QR
+        {editingEvent
+          ? 'Edit Event'
+          : 'Create Event'}
       </Text>
 
       <Text style={styles.subtitle}>
-        Fill in the event details, then scan
-        the generated QR with the Scan tab.
+        {editingEvent
+          ? 'Update the event details below.'
+          : 'Create an event and generate its QR code.'}
       </Text>
 
       <Text style={styles.label}>
@@ -335,13 +673,47 @@ export default function TeacherScreen() {
       />
 
       <Text style={styles.label}>
+        Venue
+      </Text>
+
+      <TextInput
+        style={styles.input}
+        value={venue}
+        onChangeText={setVenue}
+        placeholder="e.g. School Gymnasium"
+        placeholderTextColor={
+          COLORS.textSecondary
+        }
+      />
+
+      <Text style={styles.label}>
+        Description
+      </Text>
+
+      <TextInput
+        style={[
+          styles.input,
+          styles.descriptionInput,
+        ]}
+        value={description}
+        onChangeText={setDescription}
+        placeholder="Enter event details"
+        placeholderTextColor={
+          COLORS.textSecondary
+        }
+        multiline
+      />
+
+      <Text style={styles.label}>
         Starts
       </Text>
 
       <PickerField
         value={formatDateTime(startDate)}
         icon="sunny-outline"
-        onPress={() => openPicker('start')}
+        onPress={() =>
+          openPicker('start')
+        }
       />
 
       <Text style={styles.label}>
@@ -351,7 +723,9 @@ export default function TeacherScreen() {
       <PickerField
         value={formatDateTime(endDate)}
         icon="moon-outline"
-        onPress={() => openPicker('end')}
+        onPress={() =>
+          openPicker('end')
+        }
       />
 
       <View style={styles.chipRow}>
@@ -361,7 +735,9 @@ export default function TeacherScreen() {
               key={option.label}
               style={styles.chip}
               onPress={() =>
-                handleQuickEnd(option.ms)
+                handleQuickEnd(
+                  option.ms
+                )
               }
             >
               <Text
@@ -387,10 +763,35 @@ export default function TeacherScreen() {
 
       <AppButton
         theme="primary"
-        title="Create Event"
-        icon="add-circle-outline"
-        onPress={handleCreateEvent}
+        title={
+          saving
+            ? 'Saving...'
+            : editingEvent
+              ? 'Update Event'
+              : 'Create Event'
+        }
+        icon={
+          editingEvent
+            ? 'save-outline'
+            : 'add-circle-outline'
+        }
+        onPress={
+          editingEvent
+            ? handleUpdateEvent
+            : handleCreateEvent
+        }
       />
+
+      {editingEvent && (
+        <Pressable
+          style={styles.cancelButton}
+          onPress={resetForm}
+        >
+          <Text style={styles.cancelText}>
+            Cancel Editing
+          </Text>
+        </Pressable>
+      )}
 
       {editTarget && (
         <View
@@ -417,13 +818,239 @@ export default function TeacherScreen() {
         </View>
       )}
 
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>
+          My Events
+        </Text>
+
+        <Pressable
+          onPress={() =>
+            user?.id &&
+            loadEvents(user.id)
+          }
+        >
+          <Ionicons
+            name="refresh-outline"
+            size={22}
+            color={COLORS.primary}
+          />
+        </Pressable>
+      </View>
+
+      {eventsLoading ? (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator
+            size="small"
+            color={COLORS.primary}
+          />
+
+          <Text style={styles.emptyText}>
+            Loading events...
+          </Text>
+        </View>
+      ) : events.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Ionicons
+            name="calendar-outline"
+            size={42}
+            color={COLORS.textSecondary}
+          />
+
+          <Text style={styles.emptyTitle}>
+            No Events Yet
+          </Text>
+
+          <Text style={styles.emptyText}>
+            Create your first event above.
+          </Text>
+        </View>
+      ) : (
+        events.map((event) => (
+          <View
+            key={event.id}
+            style={styles.eventCard}
+          >
+            <View
+              style={styles.eventHeader}
+            >
+              <View
+                style={styles.eventTitleBox}
+              >
+                <Text
+                  style={styles.eventTitle}
+                >
+                  {event.title}
+                </Text>
+
+                <Text
+                  style={styles.eventCode}
+                >
+                  {event.event_code}
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.statusBadge,
+                  event.status ===
+                    'closed'
+                    ? styles.closedBadge
+                    : styles.openBadge,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusText,
+                    event.status ===
+                      'closed'
+                      ? styles.closedText
+                      : styles.openText,
+                  ]}
+                >
+                  {event.status ===
+                  'closed'
+                    ? 'Closed'
+                    : 'Open'}
+                </Text>
+              </View>
+            </View>
+
+            {event.venue && (
+              <View
+                style={styles.detailRow}
+              >
+                <Ionicons
+                  name="location-outline"
+                  size={17}
+                  color={
+                    COLORS.textSecondary
+                  }
+                />
+
+                <Text
+                  style={styles.detailText}
+                >
+                  {event.venue}
+                </Text>
+              </View>
+            )}
+
+            <View
+              style={styles.detailRow}
+            >
+              <Ionicons
+                name="time-outline"
+                size={17}
+                color={
+                  COLORS.textSecondary
+                }
+              />
+
+              <Text
+                style={styles.detailText}
+              >
+                {formatEventDate(
+                  event.start_time
+                )}
+              </Text>
+            </View>
+
+            {event.description && (
+              <Text
+                style={styles.description}
+              >
+                {event.description}
+              </Text>
+            )}
+
+            <View style={styles.actionRow}>
+              <Pressable
+                style={styles.actionButton}
+                onPress={() =>
+                  handleShowQR(event)
+                }
+              >
+                <Ionicons
+                  name="qr-code-outline"
+                  size={18}
+                  color={
+                    COLORS.primary
+                  }
+                />
+
+                <Text
+                  style={styles.actionText}
+                >
+                  QR
+                </Text>
+              </Pressable>
+
+              {event.status !==
+                'closed' && (
+                <>
+                  <Pressable
+                    style={styles.actionButton}
+                    onPress={() =>
+                      handleStartEdit(
+                        event
+                      )
+                    }
+                  >
+                    <Ionicons
+                      name="create-outline"
+                      size={18}
+                      color={
+                        COLORS.primary
+                      }
+                    />
+
+                    <Text
+                      style={
+                        styles.actionText
+                      }
+                    >
+                      Edit
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.actionButton,
+                      styles.closeAction,
+                    ]}
+                    onPress={() =>
+                      handleCloseEvent(
+                        event
+                      )
+                    }
+                  >
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={18}
+                      color="#b00020"
+                    />
+
+                    <Text
+                      style={
+                        styles.closeActionText
+                      }
+                    >
+                      Close
+                    </Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+          </View>
+        ))
+      )}
+
       {payload && (
         <View style={styles.resultCard}>
           <Text
             style={styles.resultTitle}
           >
-            Scan this QR code with the Scan
-            tab:
+            Event QR Code
           </Text>
 
           <View style={styles.qrBox}>
@@ -530,6 +1157,11 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
 
+  descriptionInput: {
+    minHeight: 90,
+    textAlignVertical: 'top',
+  },
+
   pickerField: {
     backgroundColor: COLORS.card,
     borderRadius: 14,
@@ -578,11 +1210,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 
-  pickerContainer: {
-    marginTop: 12,
-    alignItems: 'center',
-  },
-
   message: {
     fontSize: 14,
     color: COLORS.primary,
@@ -591,25 +1218,189 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
+  pickerContainer: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+
+  cancelButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+
+  cancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 32,
+    marginBottom: 12,
+  },
+
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+
+  loadingBox: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+
+  emptyCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginTop: 10,
+  },
+
+  emptyText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+
+  eventCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  eventHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+
+  eventTitleBox: {
+    flex: 1,
+    paddingRight: 10,
+  },
+
+  eventTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+
+  eventCode: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 3,
+  },
+
+  statusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+
+  openBadge: {
+    backgroundColor: '#dcfce7',
+  },
+
+  closedBadge: {
+    backgroundColor: '#fee2e2',
+  },
+
+  statusText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  openText: {
+    color: '#166534',
+  },
+
+  closedText: {
+    color: '#991b1b',
+  },
+
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+
+  detailText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginLeft: 7,
+  },
+
+  description: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: COLORS.textSecondary,
+    marginTop: 10,
+  },
+
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 18,
+  },
+
+  actionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.primary,
+    marginLeft: 5,
+  },
+
+  closeAction: {
+    marginRight: 0,
+  },
+
+  closeActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#b00020',
+    marginLeft: 5,
+  },
+
   resultCard: {
     backgroundColor: COLORS.card,
     borderRadius: 14,
     padding: 16,
     marginTop: 20,
     alignItems: 'center',
-    shadowColor: COLORS.shadow,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
 
   resultTitle: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: COLORS.textPrimary,
     textAlign: 'center',
     marginBottom: 12,

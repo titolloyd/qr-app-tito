@@ -18,6 +18,7 @@ import { signOut } from '@/lib/auth';
 export default function ProfileScreen() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
   const [profile, setProfile] = useState<Profile | null>(null);
   const [draftName, setDraftName] = useState('');
   const [editing, setEditing] = useState(false);
@@ -29,8 +30,11 @@ export default function ProfileScreen() {
     try {
       await signOut();
       router.replace('/login');
-    } catch(err: any) {
-      Alert.alert('Error', err?.message || 'Failed to sign out.');
+    } catch (err: any) {
+      Alert.alert(
+        'Error',
+        err?.message || 'Failed to sign out.'
+      );
     } finally {
       setLoading(false);
     }
@@ -81,18 +85,19 @@ export default function ProfileScreen() {
 
     if (error) {
       Alert.alert('Error', error);
-    } else {
-      setProfile((prev) =>
-        prev
-          ? {
-              ...prev,
-              full_name: draftName.trim(),
-            }
-          : prev
-      );
-
-      setEditing(false);
+      return;
     }
+
+    setProfile((prev) =>
+      prev
+        ? {
+            ...prev,
+            full_name: draftName.trim(),
+          }
+        : prev
+    );
+
+    setEditing(false);
   };
 
   return (
@@ -120,14 +125,6 @@ export default function ProfileScreen() {
                 {saving ? 'Saving...' : 'Save'}
               </Text>
             </Pressable>
-
-            <AppButton
-              title="Sign Out"
-              icon="log-out-outline"
-              onPress={handleSignOut}
-
-            />
-
           </View>
         ) : (
           <Pressable
@@ -144,9 +141,22 @@ export default function ProfileScreen() {
 
         <Text style={styles.label}>Role</Text>
 
-        {profile?.role === 'teacher' ? (
+        {profile?.role === 'admin' ? (
+          <View
+            style={[
+              styles.roleBadge,
+              styles.roleBadgeAdmin,
+            ]}
+          >
+            <Text style={styles.roleBadgeText}>
+              Administrator
+            </Text>
+          </View>
+        ) : profile?.role === 'teacher' ? (
           <View style={styles.roleBadge}>
-            <Text style={styles.roleBadgeText}>Teacher</Text>
+            <Text style={styles.roleBadgeText}>
+              Teacher
+            </Text>
           </View>
         ) : (
           <View
@@ -155,7 +165,9 @@ export default function ProfileScreen() {
               styles.roleBadgeStudent,
             ]}
           >
-            <Text style={styles.roleBadgeText}>Student</Text>
+            <Text style={styles.roleBadgeText}>
+              Student
+            </Text>
           </View>
         )}
 
@@ -170,6 +182,14 @@ export default function ProfileScreen() {
         <Text style={styles.userId}>
           {profile?.id || 'Loading...'}
         </Text>
+
+        <View style={styles.logoutContainer}>
+          <AppButton
+            title={loading ? 'Signing Out...' : 'Sign Out'}
+            icon="log-out-outline"
+            onPress={handleSignOut}
+          />
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -266,8 +286,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#eee',
   },
 
+  roleBadgeAdmin: {
+    backgroundColor: '#d9c2ff',
+  },
+
   roleBadgeText: {
     fontWeight: 'bold',
     color: '#000',
+  },
+
+  logoutContainer: {
+    marginTop: 25,
   },
 });

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -18,7 +17,6 @@ export default function RegisterScreen() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'student' | 'teacher'>('student');
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -44,14 +42,15 @@ export default function RegisterScreen() {
 
     setLoading(true);
 
-    const { data, error: authError } = await signUp(
-      email.trim(),
-      password,
-      {
-        full_name: fullName.trim(),
-        role,
-      }
-    );
+    const { data, error: authError } =
+      await signUp(
+        email.trim(),
+        password,
+        {
+          full_name: fullName.trim(),
+          role: 'student',
+        }
+      );
 
     setLoading(false);
 
@@ -68,7 +67,9 @@ export default function RegisterScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.card}>
-          <Text style={styles.title}>Account Created</Text>
+          <Text style={styles.title}>
+            Account Created
+          </Text>
 
           <Text style={styles.message}>
             Your account has been created successfully.
@@ -77,9 +78,13 @@ export default function RegisterScreen() {
 
           <Pressable
             style={styles.button}
-            onPress={() => router.replace('/login')}
+            onPress={() =>
+              router.replace('/login')
+            }
           >
-            <Text style={styles.buttonText}>Go to Login</Text>
+            <Text style={styles.buttonText}>
+              Go to Login
+            </Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -89,9 +94,13 @@ export default function RegisterScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.card}>
-        <Text style={styles.title}>Create Account</Text>
+        <Text style={styles.title}>
+          Create Account
+        </Text>
 
-        <Text style={styles.label}>Full Name</Text>
+        <Text style={styles.label}>
+          Full Name
+        </Text>
 
         <TextInput
           style={styles.input}
@@ -101,7 +110,9 @@ export default function RegisterScreen() {
           autoCapitalize="words"
         />
 
-        <Text style={styles.label}>Email</Text>
+        <Text style={styles.label}>
+          Email
+        </Text>
 
         <TextInput
           style={styles.input}
@@ -112,7 +123,9 @@ export default function RegisterScreen() {
           autoCapitalize="none"
         />
 
-        <Text style={styles.label}>Password</Text>
+        <Text style={styles.label}>
+          Password
+        </Text>
 
         <TextInput
           style={styles.input}
@@ -122,46 +135,14 @@ export default function RegisterScreen() {
           secureTextEntry
         />
 
-        <Text style={styles.label}>I am a...</Text>
-
-        <View style={styles.roleRow}>
-          <Pressable
-            style={[
-              styles.roleChip,
-              role === 'student' && styles.roleChipActive,
-            ]}
-            onPress={() => setRole('student')}
-          >
-            <Text
-              style={[
-                styles.roleChipText,
-                role === 'student' && styles.roleChipTextActive,
-              ]}
-            >
-              Student
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.roleChip,
-              role === 'teacher' && styles.roleChipActive,
-            ]}
-            onPress={() => setRole('teacher')}
-          >
-            <Text
-              style={[
-                styles.roleChipText,
-                role === 'teacher' && styles.roleChipTextActive,
-              ]}
-            >
-              Teacher
-            </Text>
-          </Pressable>
-        </View>
+        <Text style={styles.accountType}>
+          New accounts are registered as Student.
+        </Text>
 
         {error ? (
-          <Text style={styles.error}>{error}</Text>
+          <Text style={styles.error}>
+            {error}
+          </Text>
         ) : null}
 
         <Pressable
@@ -170,13 +151,17 @@ export default function RegisterScreen() {
           disabled={loading}
         >
           <Text style={styles.buttonText}>
-            {loading ? 'Creating Account...' : 'Create Account'}
+            {loading
+              ? 'Creating Account...'
+              : 'Create Account'}
           </Text>
         </Pressable>
 
         <Pressable
           style={styles.loginButton}
-          onPress={() => router.replace('/login')}
+          onPress={() =>
+            router.replace('/login')
+          }
         >
           <Text style={styles.loginText}>
             Already have an account? Login
@@ -210,7 +195,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
-  subtitle: {
+  message: {
     fontSize: 15,
     color: COLORS.textSecondary,
     lineHeight: 21,
@@ -236,66 +221,39 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
 
-  roleRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-
-  roleChip: {
-    flex: 1,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    backgroundColor: COLORS.card,
-    alignItems: 'center',
-  },
-
-  roleChipActive: {
-    backgroundColor: '#2E7D5B14',
-    borderColor: COLORS.primary,
-  },
-
-  roleChipText: {
+  accountType: {
+    fontSize: 13,
     color: COLORS.textSecondary,
-    fontWeight: '600',
-  },
-
-  roleChipTextActive: {
-    color: COLORS.primary,
-    fontWeight: '700',
+    marginTop: 12,
   },
 
   error: {
-    color: COLORS.danger,
     fontSize: 14,
-    marginTop: 10,
-    textAlign: 'left',
+    color: '#D32F2F',
+    marginTop: 12,
   },
 
   button: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    paddingVertical: 13,
+    alignItems: 'center',
     marginTop: 20,
   },
 
+  buttonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#000',
+  },
+
   loginButton: {
-    marginTop: 14,
     alignItems: 'center',
+    marginTop: 18,
   },
 
   loginText: {
-    color: COLORS.textSecondary,
     fontSize: 14,
-  },
-
-  message: {
-    fontSize: 15,
     color: COLORS.textSecondary,
-    lineHeight: 21,
-    marginBottom: 20,
-  },
-  buttonText: {
-  color: COLORS.textOnPrimary,
-  fontSize: 15,
-  fontWeight: '700',
   },
 });
