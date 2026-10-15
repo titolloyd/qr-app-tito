@@ -119,6 +119,7 @@ export async function updateEvent(
     end_time?: string | null;
     venue?: string | null;
     description?: string | null;
+    status?: EventStatus;
   }
 ): Promise<{ error: string | null }> {
   const { error } =
@@ -145,5 +146,33 @@ export async function closeEvent(
 
   return {
     error: error?.message ?? null,
+  };
+}
+
+/**
+ * Permanently deletes an event and its attendance records.
+ * Attendance rows are removed first to avoid foreign-key restrictions.
+ */
+export async function deleteEvent(
+  eventId: string
+): Promise<{ error: string | null }> {
+  const { error: attendanceError } = await supabase
+    .from('attendance')
+    .delete()
+    .eq('event_id', eventId);
+
+  if (attendanceError) {
+    return {
+      error: `Could not remove the event's attendance records: ${attendanceError.message}`,
+    };
+  }
+
+  const { error: eventError } = await supabase
+    .from('events')
+    .delete()
+    .eq('id', eventId);
+
+  return {
+    error: eventError?.message ?? null,
   };
 }

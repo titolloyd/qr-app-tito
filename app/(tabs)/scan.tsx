@@ -1,6 +1,8 @@
+
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
@@ -17,29 +19,55 @@ export default function ScanScreen() {
   const [success, setSuccess] = useState(false);
 
   if (!permission) {
-    return <View style={styles.container} />;
+    return (
+      <View style={styles.permissionContainer}>
+        <Ionicons
+          name="camera-outline"
+          size={34}
+          color={COLORS.primary}
+        />
+        <Text style={styles.subtitle}>
+          Checking camera permission...
+        </Text>
+      </View>
+    );
   }
 
   if (!permission.granted) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Camera Permission Needed</Text>
+      <View style={styles.permissionContainer}>
+        <View style={styles.permissionIcon}>
+          <Ionicons
+            name="camera-outline"
+            size={34}
+            color={COLORS.primary}
+          />
+        </View>
+
+        <Text style={styles.title}>
+          Camera Permission Needed
+        </Text>
 
         <Text style={styles.subtitle}>
-          We need access to your camera to scan QR codes.
+          Allow camera access so QR Attendance can scan
+          event codes and record your attendance.
         </Text>
 
         <AppButton
           theme="primary"
           title="Grant Permission"
-          icon="camera"
+          icon="camera-outline"
           onPress={requestPermission}
         />
       </View>
     );
   }
 
-  const handleBarcodeScanned = async ({ data }: { data: string }) => {
+  const handleBarcodeScanned = async ({
+    data,
+  }: {
+    data: string;
+  }) => {
     setScanned(true);
     setLastData(data);
     setMessage(null);
@@ -53,7 +81,9 @@ export default function ScanScreen() {
     } catch (error) {
       console.error('Attendance registration failed:', error);
 
-      setMessage('Something went wrong while recording attendance.');
+      setMessage(
+        'Something went wrong while recording attendance.'
+      );
       setSuccess(false);
     }
   };
@@ -73,38 +103,99 @@ export default function ScanScreen() {
         barcodeScannerSettings={{
           barcodeTypes: ['qr'],
         }}
-        onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+        onBarcodeScanned={
+          scanned ? undefined : handleBarcodeScanned
+        }
       />
 
+      <View style={styles.topLabel}>
+        <View style={styles.liveDot} />
+        <Text style={styles.topLabelText}>
+          QR SCANNER
+        </Text>
+      </View>
+
+      {!scanned ? (
+        <View style={styles.scanGuide}>
+          <View style={styles.cornerTopLeft} />
+          <View style={styles.cornerTopRight} />
+          <View style={styles.cornerBottomLeft} />
+          <View style={styles.cornerBottomRight} />
+        </View>
+      ) : null}
+
       <View style={styles.overlay}>
-        <Text style={styles.overlayText}>
+        <View
+          style={[
+            styles.resultIcon,
+            scanned && success
+              ? styles.resultIconSuccess
+              : null,
+            scanned && !success
+              ? styles.resultIconError
+              : null,
+          ]}
+        >
+          <Ionicons
+            name={
+              !scanned
+                ? 'scan-outline'
+                : success
+                  ? 'checkmark-circle-outline'
+                  : 'alert-circle-outline'
+            }
+            size={26}
+            color={
+              !scanned
+                ? COLORS.primary
+                : success
+                  ? COLORS.success
+                  : COLORS.error
+            }
+          />
+        </View>
+
+        <Text style={styles.overlayTitle}>
           {scanned
-            ? 'QR Code detected!'
-            : 'Point your camera at a QR code'}
+            ? success
+              ? 'Attendance Recorded'
+              : 'Scan Result'
+            : 'Ready to Scan?'}
         </Text>
 
-        {scanned && message && (
-          <Text
-            style={[
-              styles.scanResult,
-              success ? styles.success : styles.error,
-            ]}
-          >
-            {message}
-          </Text>
-        )}
+        <Text style={styles.overlayText}>
+          {scanned
+            ? message || 'Your QR code has been processed.'
+            : 'Point your camera at the event QR code to check in.'}
+        </Text>
 
-        {scanned && lastData && (
-          <Text style={styles.scanData}>{lastData}</Text>
-        )}
+        {scanned && lastData ? (
+          <View style={styles.dataContainer}>
+            <Text style={styles.dataLabel}>
+              SCANNED DATA
+            </Text>
+            <Text
+              style={styles.scanData}
+              numberOfLines={3}
+              selectable
+            >
+              {lastData}
+            </Text>
+          </View>
+        ) : null}
 
-        {scanned && (
+        {scanned ? (
           <AppButton
             theme="primary"
             title="Scan Again"
-            icon="refresh"
+            icon="refresh-outline"
             onPress={handleScanAgain}
+            style={styles.actionButton}
           />
+        ) : (
+          <Text style={styles.scanHint}>
+            Keep the QR code inside the camera frame.
+          </Text>
         )}
       </View>
     </View>
@@ -117,66 +208,211 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
   },
 
   camera: {
     ...StyleSheet.absoluteFillObject,
   },
 
+  permissionContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+  },
+
+  permissionIcon: {
+    width: 76,
+    height: 76,
+    borderRadius: 24,
+    backgroundColor: COLORS.primaryMuted,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 22,
+  },
+
   title: {
-    fontSize: 20,
-    fontWeight: '600',
     color: COLORS.textPrimary,
-    marginBottom: 8,
+    fontSize: 23,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 10,
   },
 
   subtitle: {
-    fontSize: 14,
     color: COLORS.textSecondary,
+    fontSize: 14,
+    lineHeight: 22,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 16,
+    marginTop: 12,
+    marginBottom: 24,
+  },
+
+  topLabel: {
+    position: 'absolute',
+    top: 24,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: COLORS.overlay,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  liveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.success,
+  },
+
+  topLabelText: {
+    color: COLORS.textPrimary,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+  },
+
+  scanGuide: {
+    width: 230,
+    height: 230,
+    position: 'absolute',
+    top: '25%',
+  },
+
+  cornerTopLeft: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 38,
+    height: 38,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: COLORS.primary,
+    borderTopLeftRadius: 14,
+  },
+
+  cornerTopRight: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 38,
+    height: 38,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderColor: COLORS.primary,
+    borderTopRightRadius: 14,
+  },
+
+  cornerBottomLeft: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 38,
+    height: 38,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: COLORS.primary,
+    borderBottomLeftRadius: 14,
+  },
+
+  cornerBottomRight: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 38,
+    height: 38,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderColor: COLORS.primary,
+    borderBottomRightRadius: 14,
   },
 
   overlay: {
     position: 'absolute',
-    left: 20,
-    right: 20,
-    bottom: 60,
+    left: 16,
+    right: 16,
+    bottom: 22,
     backgroundColor: COLORS.card,
-    borderRadius: 14,
-    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 23,
+    padding: 20,
     alignItems: 'center',
   },
 
-  overlayText: {
-    fontSize: 16,
-    fontWeight: '600',
+  resultIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: COLORS.primaryMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 13,
+  },
+
+  resultIconSuccess: {
+    backgroundColor: COLORS.successBackground,
+  },
+
+  resultIconError: {
+    backgroundColor: COLORS.errorBackground,
+  },
+
+  overlayTitle: {
+    fontSize: 19,
+    fontWeight: '800',
     color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: 7,
+  },
+
+  overlayText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+
+  dataContainer: {
+    alignSelf: 'stretch',
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: COLORS.inputBackground,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  dataLabel: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
     marginBottom: 6,
-    textAlign: 'center',
-  },
-
-  scanResult: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 8,
-    fontWeight: '600',
-  },
-
-  success: {
-    color: '#2E7D32',
-  },
-
-  error: {
-    color: '#C62828',
   },
 
   scanData: {
-    fontSize: 12,
     color: COLORS.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+
+  actionButton: {
+    marginTop: 18,
+  },
+
+  scanHint: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
     textAlign: 'center',
-    marginBottom: 12,
+    marginTop: 16,
   },
 });

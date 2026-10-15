@@ -23,20 +23,19 @@ export default function RootLayout() {
     );
   }
 
-  const path = segments?.[0];
+  const path = segments[0];
 
   const inAuthGroup =
-    path === 'login' ||
-    path === 'register';
+    path === 'login' || path === 'register';
 
   const inTabsGroup = path === '(tabs)';
 
-  // User is logged out but trying to access the app
+  // Logged-out users cannot access the tabs.
   if (!session && inTabsGroup) {
     return <Redirect href="/login" />;
   }
 
-  // User is already logged in but is on login/register
+  // Logged-in users should enter the tabs from login/register.
   if (session && inAuthGroup) {
     return <Redirect href="/(tabs)" />;
   }
@@ -45,6 +44,9 @@ export default function RootLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
+        contentStyle: {
+          backgroundColor: COLORS.background,
+        },
       }}
     >
       <Stack.Screen name="login" />

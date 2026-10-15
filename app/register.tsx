@@ -1,15 +1,26 @@
+
 import { useState } from 'react';
 import {
+  ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { signUp } from '../lib/auth';
-import { COLORS } from '@/constants/colors';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Ionicons from '@expo/vector-icons/Ionicons';
+
+import { signUp, type RequestedRole } from '@/lib/auth';
+import { COLORS } from '@/constants/colors';
+import AppButton from '@/components/AppButton';
+import Header from '@/components/Header';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -17,6 +28,8 @@ export default function RegisterScreen() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [accountType, setAccountType] = useState<RequestedRole>('student');
+  const [schoolId, setSchoolId] = useState('');
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -31,61 +44,79 @@ export default function RegisterScreen() {
     }
 
     if (!email.trim()) {
-      setError('Please enter your email.');
+      setError('Please enter your email address.');
+      return;
+    }
+
+    if (accountType === 'student' && !schoolId.trim()) {
+      setError('Please enter your school ID.');
       return;
     }
 
     if (!password) {
-      setError('Please enter your password.');
+      setError('Please enter a password.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Your password must contain at least 6 characters.');
       return;
     }
 
     setLoading(true);
 
-    const { data, error: authError } =
-      await signUp(
+    try {
+      const { data, error: authError } = await signUp(
         email.trim(),
         password,
         {
           full_name: fullName.trim(),
-          role: 'student',
+          requested_role: accountType,
+          school_id: accountType === 'student' ? schoolId.trim() : undefined,
         }
       );
 
-    setLoading(false);
-
-    if (authError) {
-      setError(authError.message);
-    } else if (data.session) {
-      router.replace('/(tabs)');
-    } else {
-      setSuccess(true);
+      if (authError) {
+        setError(authError.message);
+      } else if (data.session) {
+        router.replace('/(tabs)');
+      } else {
+        setSuccess(true);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Unable to create your account.');
+    } finally {
+      setLoading(false);
     }
   };
 
   if (success) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.card}>
-          <Text style={styles.title}>
-            Account Created
+        <View style={styles.successCard}>
+          <View style={styles.successIcon}>
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={44}
+              color={COLORS.success}
+            />
+          </View>
+
+          <Text style={styles.title}>Account Created</Text>
+
+          <Text style={styles.subtitle}>
+            {accountType === 'teacher'
+              ? 'Your teacher account request has been submitted. An administrator must approve it before you can use teacher features.'
+              : 'Your account has been created. Your school ID is awaiting administrator verification.'}
+            {' '}If email confirmation is enabled, check your inbox before signing in.
           </Text>
 
-          <Text style={styles.message}>
-            Your account has been created successfully.
-            Please check your email if confirmation is required.
-          </Text>
-
-          <Pressable
-            style={styles.button}
-            onPress={() =>
-              router.replace('/login')
-            }
-          >
-            <Text style={styles.buttonText}>
-              Go to Login
-            </Text>
-          </Pressable>
+          <AppButton
+            theme="primary"
+            title="Go to Login"
+            icon="log-in-outline"
+            onPress={() => router.replace('/login')}
+          />
         </View>
       </SafeAreaView>
     );
@@ -93,81 +124,195 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>
-          Create Account
-        </Text>
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <Header title="QR Attendance" />
 
-        <Text style={styles.label}>
-          Full Name
-        </Text>
+            <View style={styles.card}>
+              <Text style={styles.eyebrow}>GET STARTED</Text>
 
-        <TextInput
-          style={styles.input}
-          value={fullName}
-          onChangeText={setFullName}
-          placeholder="Enter your full name"
-          autoCapitalize="words"
-        />
+              <Text style={styles.title}>Create Account</Text>
 
-        <Text style={styles.label}>
-          Email
-        </Text>
+              <Text style={styles.subtitle}>
+                Register to start using QR Attendance.
+              </Text>
 
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="Enter your email"
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
+              <Text style={styles.label}>Full Name</Text>
 
-        <Text style={styles.label}>
-          Password
-        </Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons
+                  name="person-outline"
+                  size={19}
+                  color={COLORS.textSecondary}
+                />
 
-        <TextInput
-          style={styles.input}
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Enter your password"
-          secureTextEntry
-        />
+                <TextInput
+                  style={styles.input}
+                  value={fullName}
+                  onChangeText={setFullName}
+                  placeholder="Enter your full name"
+                  placeholderTextColor={COLORS.textMuted}
+                  autoCapitalize="words"
+                  editable={!loading}
+                  returnKeyType="next"
+                />
+              </View>
 
-        <Text style={styles.accountType}>
-          New accounts are registered as Student.
-        </Text>
+              <Text style={styles.label}>Email Address</Text>
 
-        {error ? (
-          <Text style={styles.error}>
-            {error}
-          </Text>
-        ) : null}
+              <View style={styles.inputWrapper}>
+                <Ionicons
+                  name="mail-outline"
+                  size={19}
+                  color={COLORS.textSecondary}
+                />
 
-        <Pressable
-          style={styles.button}
-          onPress={handleRegister}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading
-              ? 'Creating Account...'
-              : 'Create Account'}
-          </Text>
-        </Pressable>
+                <TextInput
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="your.email@school.edu"
+                  placeholderTextColor={COLORS.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading}
+                  returnKeyType="next"
+                />
+              </View>
 
-        <Pressable
-          style={styles.loginButton}
-          onPress={() =>
-            router.replace('/login')
-          }
-        >
-          <Text style={styles.loginText}>
-            Already have an account? Login
-          </Text>
-        </Pressable>
-      </View>
+              <Text style={styles.label}>Account Type</Text>
+
+              <View style={styles.accountTypeChoices}>
+                <Pressable
+                  style={[styles.accountTypeChoice, accountType === 'student' && styles.accountTypeChoiceActive]}
+                  onPress={() => setAccountType('student')}
+                  disabled={loading}
+                >
+                  <Ionicons name="school-outline" size={18} color={accountType === 'student' ? COLORS.primaryLight : COLORS.textSecondary} />
+                  <Text style={[styles.accountTypeChoiceText, accountType === 'student' && styles.accountTypeChoiceTextActive]}>Student</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.accountTypeChoice, accountType === 'teacher' && styles.accountTypeChoiceActive]}
+                  onPress={() => setAccountType('teacher')}
+                  disabled={loading}
+                >
+                  <Ionicons name="person-circle-outline" size={18} color={accountType === 'teacher' ? COLORS.primaryLight : COLORS.textSecondary} />
+                  <Text style={[styles.accountTypeChoiceText, accountType === 'teacher' && styles.accountTypeChoiceTextActive]}>Teacher</Text>
+                </Pressable>
+              </View>
+
+              {accountType === 'student' ? (
+                <>
+                  <Text style={styles.label}>School ID Number</Text>
+                  <View style={styles.inputWrapper}>
+                    <Ionicons name="id-card-outline" size={19} color={COLORS.textSecondary} />
+                    <TextInput
+                      style={styles.input}
+                      value={schoolId}
+                      onChangeText={setSchoolId}
+                      placeholder="Enter your school ID"
+                      placeholderTextColor={COLORS.textMuted}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      editable={!loading}
+                      returnKeyType="next"
+                    />
+                  </View>
+                </>
+              ) : (
+                <View style={styles.accountType}>
+                  <Ionicons name="shield-checkmark-outline" size={17} color={COLORS.primary} />
+                  <Text style={styles.accountTypeText}>Teacher accounts require administrator approval before teacher features become available.</Text>
+                </View>
+              )}
+
+              <Text style={styles.label}>Password</Text>
+
+              <View style={styles.inputWrapper}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={19}
+                  color={COLORS.textSecondary}
+                />
+
+                <TextInput
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="At least 6 characters"
+                  placeholderTextColor={COLORS.textMuted}
+                  secureTextEntry
+                  editable={!loading}
+                  returnKeyType="done"
+                  onSubmitEditing={handleRegister}
+                />
+              </View>
+
+              <View style={styles.accountType}>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={17}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.accountTypeText}>
+                  {accountType === 'student'
+                    ? 'Your school ID will remain pending until an administrator verifies it.'
+                    : 'Your request will remain pending until an administrator approves it.'}
+                </Text>
+              </View>
+
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={18}
+                    color={COLORS.error}
+                  />
+                  <Text style={styles.error}>{error}</Text>
+                </View>
+              ) : null}
+
+              <View style={styles.buttonContainer}>
+                {loading ? (
+                  <ActivityIndicator
+                    size="large"
+                    color={COLORS.primary}
+                  />
+                ) : (
+                  <AppButton
+                    theme="primary"
+                    title="Create Account"
+                    icon="person-add-outline"
+                    onPress={handleRegister}
+                  />
+                )}
+              </View>
+
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>
+                  Already have an account?
+                </Text>
+
+                <Pressable
+                  onPress={() => router.replace('/login')}
+                  disabled={loading}
+                >
+                  <Text style={styles.loginText}>Sign In</Text>
+                </Pressable>
+              </View>
+            </View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -176,84 +321,191 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+    paddingHorizontal: 22,
+  },
+
+  keyboardView: {
+    flex: 1,
+  },
+
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingVertical: 18,
   },
 
   card: {
     backgroundColor: COLORS.card,
-    borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 20,
+    borderRadius: 22,
+    padding: 22,
+    marginBottom: 12,
   },
 
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-    marginBottom: 8,
+  successCard: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 22,
+    padding: 24,
+    alignItems: 'center',
   },
 
-  message: {
-    fontSize: 15,
-    color: COLORS.textSecondary,
-    lineHeight: 21,
+  successIcon: {
+    width: 76,
+    height: 76,
+    borderRadius: 25,
+    backgroundColor: COLORS.successBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 20,
   },
 
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
+  eyebrow: {
+    color: COLORS.primary,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.8,
+    marginBottom: 8,
+  },
+
+  title: {
     color: COLORS.textPrimary,
-    marginBottom: 6,
-    marginTop: 10,
+    fontSize: 27,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
+
+  subtitle: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 18,
+  },
+
+  label: {
+    color: COLORS.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 15,
+    marginBottom: 8,
+  },
+
+  inputWrapper: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    backgroundColor: COLORS.inputBackground,
+    borderWidth: 1,
+    borderColor: COLORS.inputBorder,
+    borderRadius: 14,
+    paddingHorizontal: 14,
   },
 
   input: {
+    flex: 1,
+    minHeight: 50,
+    color: COLORS.textPrimary,
+    fontSize: 14,
+    paddingVertical: 10,
+  },
+
+  accountTypeChoices: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+
+  accountTypeChoice: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 13,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 10,
-    backgroundColor: COLORS.card,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: COLORS.textPrimary,
+    backgroundColor: COLORS.inputBackground,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+
+  accountTypeChoiceActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryMuted,
+  },
+
+  accountTypeChoiceText: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  accountTypeChoiceTextActive: {
+    color: COLORS.primaryLight,
   },
 
   accountType: {
-    fontSize: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.primaryMuted,
+    borderRadius: 11,
+    padding: 12,
+    marginTop: 17,
+  },
+
+  accountTypeText: {
+    flex: 1,
     color: COLORS.textSecondary,
-    marginTop: 12,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    backgroundColor: COLORS.errorBackground,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
   },
 
   error: {
-    fontSize: 14,
-    color: '#D32F2F',
-    marginTop: 12,
+    flex: 1,
+    color: COLORS.error,
+    fontSize: 13,
+    lineHeight: 19,
   },
 
-  button: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 10,
-    paddingVertical: 13,
+  buttonContainer: {
+    marginTop: 24,
+  },
+
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 20,
+    flexWrap: 'wrap',
+    gap: 5,
+    marginTop: 23,
   },
 
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#000',
-  },
-
-  loginButton: {
-    alignItems: 'center',
-    marginTop: 18,
+  footerText: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
   },
 
   loginText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    color: COLORS.primary,
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

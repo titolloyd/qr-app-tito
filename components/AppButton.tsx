@@ -1,107 +1,152 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { useRef } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Pressable,
+  StyleSheet,
+  Text,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+
 import { COLORS } from '@/constants/colors';
 
 type AppButtonProps = {
-  title: string;
-  icon?: keyof typeof Ionicons.glyphMap;
-  theme?: 'primary';
-  onPress: () => void;
+  title?: string;
+  label?: string;
+  icon?: string;
+  onPress: () => unknown;
+  theme?: 'primary' | 'secondary' | 'outline';
   disabled?: boolean;
+  loading?: boolean;
+  style?: StyleProp<ViewStyle>;
 };
 
 export default function AppButton({
   title,
+  label,
   icon,
-  theme,
   onPress,
+  theme = 'secondary',
   disabled = false,
+  loading = false,
+  style,
 }: AppButtonProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const buttonTitle = title ?? label ?? '';
+  const isDisabled = disabled || loading;
   const isPrimary = theme === 'primary';
+  const isOutline = theme === 'outline';
+
+  const backgroundColor = isPrimary
+    ? COLORS.primary
+    : isOutline
+      ? COLORS.transparent
+      : COLORS.cardElevated;
+
+  const borderColor = isPrimary
+    ? COLORS.primary
+    : COLORS.border;
+
+  const textColor = isPrimary
+    ? COLORS.textOnPrimary
+    : COLORS.textPrimary;
+
+  const animateScale = (toValue: number) => {
+    Animated.spring(scale, {
+      toValue,
+      useNativeDriver: true,
+      speed: 28,
+      bounciness: 2,
+    }).start();
+  };
 
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.button,
-        isPrimary ? styles.primaryButton : styles.secondaryButton,
-        disabled && styles.disabledButton,
-        pressed && styles.pressedButton,
+    <Animated.View
+      style={[
+        styles.wrapper,
+        { transform: [{ scale }] },
+        style,
       ]}
     >
-      <View style={styles.buttonInner}>
-        {icon ? (
-          <Ionicons
-            name={icon}
-            size={18}
-            color={
-              isPrimary
-                ? COLORS.textOnPrimary
-                : COLORS.textPrimary
-            }
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={buttonTitle}
+        accessibilityState={{
+          disabled: isDisabled,
+          busy: loading,
+        }}
+        disabled={isDisabled}
+        onPress={onPress}
+        onPressIn={() => animateScale(0.98)}
+        onPressOut={() => animateScale(1)}
+        style={({ pressed }) => [
+          styles.button,
+          {
+            backgroundColor,
+            borderColor,
+            opacity: isDisabled ? 0.5 : 1,
+          },
+          pressed && !isDisabled && styles.pressed,
+        ]}
+      >
+        {loading ? (
+          <ActivityIndicator
+            color={textColor}
+            size="small"
           />
-        ) : null}
+        ) : (
+          <>
+            {icon ? (
+              <Ionicons
+                name={icon as any}
+                size={19}
+                color={textColor}
+              />
+            ) : null}
 
-        <Text
-          style={[
-            styles.text,
-            isPrimary ? styles.primaryText : styles.secondaryText,
-          ]}
-        >
-          {title}
-        </Text>
-      </View>
-    </Pressable>
+            <Text
+              style={[
+                styles.label,
+                { color: textColor },
+              ]}
+            >
+              {buttonTitle}
+            </Text>
+          </>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    width: '100%',
+  },
+
   button: {
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-
-  primaryButton: {
-    backgroundColor: COLORS.primary,
+    minHeight: 52,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     borderWidth: 1,
-    borderColor: COLORS.primary,
-  },
-
-  secondaryButton: {
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-
-  buttonInner: {
-    minHeight: 50,
-    paddingHorizontal: 18,
+    borderRadius: 15,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 9,
   },
 
-  text: {
+  pressed: {
+    opacity: 0.88,
+  },
+
+  label: {
     fontSize: 15,
-  },
-
-  primaryText: {
-    color: COLORS.textOnPrimary,
     fontWeight: '700',
-  },
-
-  secondaryText: {
-    color: COLORS.textPrimary,
-    fontWeight: '600',
-  },
-
-  disabledButton: {
-    opacity: 0.5,
-  },
-
-  pressedButton: {
-    opacity: 0.75,
+    letterSpacing: 0.15,
   },
 });

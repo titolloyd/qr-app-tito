@@ -1,12 +1,16 @@
 import { supabase } from './supabase';
 import { getEventByCode } from './events';
 import { parseQRPayload } from './qr';
+import { getProfile } from './profiles';
 
 export type AttendanceRecord = {
   id: string;
   eventId: string;
   eventTitle: string;
   scannedAt: string;
+  startTime: string | null;
+  endTime: string | null;
+  eventStatus: 'open' | 'closed';
 };
 
 export type RegisterResult = {
@@ -21,10 +25,14 @@ export type TeacherEventAttendance = {
   title: string;
   startTime: string | null;
   endTime: string | null;
+  eventStatus: 'open' | 'closed';
   attendeeCount: number;
   attendees: {
+    id: string;
     studentId: string;
     scannedAt: string;
+    studentName: string | null;
+    schoolId: string | null;
   }[];
 };
 
@@ -54,6 +62,17 @@ export async function registerAttendance(
       message:
         'You must be logged in as a student.',
     };
+  }
+
+  const profile = await getProfile(studentId);
+  if (!profile) {
+    return { success: false, message: 'Your account profile could not be verified. Please sign in again.' };
+  }
+  if (profile.role !== 'student' || profile.requested_role === 'teacher') {
+    return { success: false, message: 'Only student accounts can record attendance.' };
+  }
+  if (profile.school_id_status !== 'verified' && profile.school_id_status !== 'not_required') {
+    return { success: false, message: 'Your school ID is awaiting administrator verification.' };
   }
 
   const parsed = parseQRPayload(rawPayload);
@@ -216,10 +235,22 @@ export async function registerAttendance(
       attendanceError
     );
 
+    const databaseMessage = attendanceError.message || '';
+    const friendlyMessage = /school ID must be verified/i.test(databaseMessage)
+      ? 'Your school ID is awaiting administrator verification.'
+      : /event has not started/i.test(databaseMessage)
+        ? 'Event has not started yet.'
+        : /event has already ended/i.test(databaseMessage)
+          ? 'Event has already ended.'
+          : /event is closed/i.test(databaseMessage)
+            ? 'This event is closed.'
+            : /approved student account/i.test(databaseMessage)
+              ? 'Only verified student accounts can record attendance.'
+              : 'Failed to record attendance.';
+
     return {
       success: false,
-      message:
-        'Failed to record attendance.',
+      message: friendlyMessage,
       eventTitle: event.title,
     };
   }
@@ -244,7 +275,10 @@ export async function getAttendanceHistory(
       event_id,
       scanned_at,
       events (
-        title
+        title,
+        start_time,
+        end_time,
+        status
       )
     `)
     .eq('student_id', studentId)
@@ -268,6 +302,9 @@ export async function getAttendanceHistory(
       row.events?.title ??
       row.event_id,
     scannedAt: row.scanned_at,
+    startTime: row.events?.start_time ?? null,
+    endTime: row.events?.end_time ?? null,
+    eventStatus: row.events?.status === 'closed' ? 'closed' : 'open',
   }));
 }
 
@@ -280,7 +317,7 @@ export async function getTeacherEventAttendance(
   } = await supabase
     .from('events')
     .select(
-      'id, event_code, title, start_time, end_time'
+      'id, event_code, title, start_time, end_time, status'
     )
     .eq('created_by', teacherId)
     .order('created_at', {
@@ -310,7 +347,7 @@ export async function getTeacherEventAttendance(
   } = await supabase
     .from('attendance')
     .select(
-      'student_id, scanned_at, event_id'
+      'id, student_id, scanned_at, event_id'
     )
     .in('event_id', eventIds)
     .order('scanned_at', {
@@ -332,16 +369,25 @@ export async function getTeacherEventAttendance(
       title: event.title,
       startTime: event.start_time,
       endTime: event.end_time,
+      eventStatus: event.status === 'closed' ? 'closed' : 'open',
       attendeeCount: 0,
       attendees: [],
     }));
   }
 
+  // Fetch profiles separately: this avoids relying on a foreign-key join
+  // between attendance and profiles, which is not configured in this schema.
+  const studentIds = Array.from(new Set(attendance.map((row) => row.student_id).filter(Boolean)));
+  const profileResults = await Promise.all(studentIds.map(async (studentId) => ({
+    studentId,
+    profile: await getProfile(studentId),
+  })));
+  const profilesById = new Map(
+    profileResults.map(({ studentId, profile }) => [studentId, profile])
+  );
+
   return events.map((event) => {
-    const rows = attendance.filter(
-      (row) =>
-        row.event_id === event.id
-    );
+    const rows = attendance.filter((row) => row.event_id === event.id);
 
     return {
       eventId: event.id,
@@ -349,11 +395,18 @@ export async function getTeacherEventAttendance(
       title: event.title,
       startTime: event.start_time,
       endTime: event.end_time,
+      eventStatus: event.status === 'closed' ? 'closed' : 'open',
       attendeeCount: rows.length,
-      attendees: rows.map((row) => ({
-        studentId: row.student_id,
-        scannedAt: row.scanned_at,
-      })),
+      attendees: rows.map((row) => {
+        const profile = profilesById.get(row.student_id);
+        return {
+          id: row.id,
+          studentId: row.student_id,
+          scannedAt: row.scanned_at,
+          studentName: profile?.full_name?.trim() || null,
+          schoolId: profile?.school_id?.trim() || null,
+        };
+      }),
     };
   });
 }

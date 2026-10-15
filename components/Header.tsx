@@ -1,3 +1,4 @@
+
 import { MaterialIcons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -13,12 +14,16 @@ export default function Header({ title }: Props) {
       <View style={styles.logoCircle}>
         <MaterialIcons
           name="qr-code-scanner"
-          size={36}
+          size={34}
           color={COLORS.primary}
         />
       </View>
 
       <Text style={styles.title}>{title}</Text>
+
+      <Text style={styles.subtitle}>
+        School Event Attendance
+      </Text>
     </View>
   );
 }
@@ -26,22 +31,35 @@ export default function Header({ title }: Props) {
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingVertical: 20,
   },
 
   logoCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: COLORS.surface,
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    backgroundColor: COLORS.primaryMuted,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 15,
   },
 
   title: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 25,
+    fontWeight: '800',
+    letterSpacing: -0.5,
     color: COLORS.textPrimary,
+    textAlign: 'center',
+  },
+
+  subtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
   },
 });
