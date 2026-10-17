@@ -1,22 +1,120 @@
-
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/lib/auth';
 import { registerAttendance } from '@/lib/attendance';
+import { getProfile, type Profile } from '@/lib/profiles';
 
 export default function ScanScreen() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
+
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   const [scanned, setScanned] = useState(false);
   const [lastData, setLastData] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProfile() {
+      setProfileLoading(true);
+      setProfile(null);
+
+      if (!user?.id) {
+        if (active) {
+          setProfileLoading(false);
+        }
+        return;
+      }
+
+      const result = await getProfile(user.id);
+
+      if (active) {
+        setProfile(result);
+        setProfileLoading(false);
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
+  if (authLoading || profileLoading) {
+    return (
+      <View style={styles.permissionContainer}>
+        <ActivityIndicator
+          size="large"
+          color={COLORS.primary}
+        />
+
+        <Text style={styles.subtitle}>
+          Checking your student account...
+        </Text>
+      </View>
+    );
+  }
+
+  const canScan =
+    profile?.role === 'student' &&
+    profile.requested_role === 'student' &&
+    (
+      profile.school_id_status === 'verified' ||
+      profile.school_id_status === 'not_required'
+    );
+
+  if (!canScan) {
+    const heading = !profile
+      ? 'Unable to Verify Your Account'
+      : profile.school_id_status === 'rejected'
+        ? 'School ID Verification Rejected'
+        : profile.school_id_status === 'pending'
+          ? 'School ID Verification Pending'
+          : 'Student Access Required';
+
+    const explanation = !profile
+      ? 'Your account details could not be loaded. Please check your connection and reopen this screen.'
+      : profile.school_id_status === 'rejected'
+        ? 'Your school ID was not approved. Please contact the administrator to resolve the issue before scanning attendance QR codes.'
+        : profile.school_id_status === 'pending'
+          ? 'You cannot access the QR scanner until an administrator verifies your school ID.'
+          : 'Only eligible student accounts can scan attendance QR codes.';
+
+    return (
+      <View style={styles.permissionContainer}>
+        <View style={styles.permissionIcon}>
+          <Ionicons
+            name="shield-checkmark-outline"
+            size={34}
+            color={COLORS.primary}
+          />
+        </View>
+
+        <Text style={styles.title}>
+          {heading}
+        </Text>
+
+        <Text style={styles.subtitle}>
+          {explanation}
+        </Text>
+      </View>
+    );
+  }
 
   if (!permission) {
     return (
@@ -26,6 +124,7 @@ export default function ScanScreen() {
           size={34}
           color={COLORS.primary}
         />
+
         <Text style={styles.subtitle}>
           Checking camera permission...
         </Text>
@@ -74,16 +173,24 @@ export default function ScanScreen() {
 
     try {
       const studentId = user?.id ?? 'unknown';
-      const result = await registerAttendance(data, studentId);
+
+      const result = await registerAttendance(
+        data,
+        studentId
+      );
 
       setMessage(result.message);
       setSuccess(result.success);
     } catch (error) {
-      console.error('Attendance registration failed:', error);
+      console.error(
+        'Attendance registration failed:',
+        error
+      );
 
       setMessage(
         'Something went wrong while recording attendance.'
       );
+
       setSuccess(false);
     }
   };
@@ -110,6 +217,7 @@ export default function ScanScreen() {
 
       <View style={styles.topLabel}>
         <View style={styles.liveDot} />
+
         <Text style={styles.topLabelText}>
           QR SCANNER
         </Text>
@@ -174,6 +282,7 @@ export default function ScanScreen() {
             <Text style={styles.dataLabel}>
               SCANNED DATA
             </Text>
+
             <Text
               style={styles.scanData}
               numberOfLines={3}

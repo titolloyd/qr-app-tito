@@ -1,9 +1,5 @@
 import { Redirect, Stack, useSegments } from 'expo-router';
-import {
-  ActivityIndicator,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/lib/auth';
@@ -15,27 +11,22 @@ export default function RootLayout() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator
-          size="large"
-          color={COLORS.primary}
-        />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
 
-  const path = segments[0];
+  const firstSegment = segments[0];
 
   const inAuthGroup =
-    path === 'login' || path === 'register';
+    firstSegment === 'login' || firstSegment === 'register';
 
-  const inTabsGroup = path === '(tabs)';
+  const inTabsGroup = firstSegment === '(tabs)';
 
-  // Logged-out users cannot access the tabs.
   if (!session && inTabsGroup) {
     return <Redirect href="/login" />;
   }
 
-  // Logged-in users should enter the tabs from login/register.
   if (session && inAuthGroup) {
     return <Redirect href="/(tabs)" />;
   }
@@ -52,6 +43,7 @@ export default function RootLayout() {
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="+not-found" />
     </Stack>
   );
 }
@@ -59,8 +51,8 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
   },
 });

@@ -77,12 +77,31 @@ export default function RegisterScreen() {
       );
 
       if (authError) {
-        setError(authError.message);
-      } else if (data.session) {
-        router.replace('/(tabs)');
-      } else {
-        setSuccess(true);
-      }
+  const errorMessage = authError.message || '';
+
+  if (
+    errorMessage.toLowerCase().includes('duplicate key') ||
+    errorMessage.toLowerCase().includes('school_id') ||
+    errorMessage.toLowerCase().includes('unique constraint')
+  ) {
+    setError(
+      'This school ID is already registered. Please check your school ID and try again.'
+    );
+  } else if (
+    errorMessage.toLowerCase().includes('already registered') ||
+    errorMessage.toLowerCase().includes('user already exists')
+  ) {
+    setError(
+      'An account with this email already exists. Please sign in instead.'
+    );
+  } else {
+    setError(errorMessage || 'Unable to create your account.');
+  }
+} else {
+  // Always show the registration confirmation screen.
+  // The root layout handles navigation if a session is established.
+  setSuccess(true);
+}
     } catch (err: any) {
       setError(err?.message || 'Unable to create your account.');
     } finally {
